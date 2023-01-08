@@ -157,11 +157,24 @@ exit(int status) {
 	thread_exit();
 }
 
+/**
+ * @brief 부모 프로세스로 부터 자식 프로세스를 복제한다.
+ * 
+ * @param thread_name 새로 생성될 자식 프로세스의 이름
+ * @param f 부모의 인터럽트 프레임
+ * @return pid_t 생성된 자식 프로세스의 pid
+ */
 pid_t fork (const char *thread_name, struct intr_frame *f) {
 	check_address(thread_name);
 	return process_fork(thread_name, f);
 }
 
+/**
+ * @brief cmd_line으로 들어온 실행 파일을 실행한다.
+ * 
+ * @param file 실행하려는 파일 이름
+ * @return int 성공 시 0, 실패 시 -1
+ */
 int exec (const char *file){
 	check_address(file);
 
@@ -178,6 +191,12 @@ int exec (const char *file){
 	return 0;
 }
 
+/**
+ * @brief pid에 해당하는 자식 프로세스가 종료될 때까지 기다린다.
+ * 
+ * @param pid 기다리려는 자식 프로세스의 pid
+ * @return int 성공 시 자식 프로세스의 종료 상태, 실패 시 -1
+ */
 int wait (tid_t pid){
 	process_wait(pid);
 }
