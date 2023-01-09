@@ -7,6 +7,12 @@
  * initialization callback that passed from vm_alloc_page_with_initializer
  * function.
  * */
+/* uninit.c: 초기화되지 않은 페이지에 대한 구현이다.
+ * 모든 페이지가 uninit page로 생성된다.
+ * 첫 번째 페이지 폴트가 났을 때, 핸들러 체인은 uninit_initiailize(page->operations.swap_in)를 호출한다.
+ * uninit_initialize 함수는 페이지 개체를 특정 페이지 개체(anon, file, page_cache)로 변환하고 
+ * vm_alloc_page_with_initializer 함수로 부터 전달된 초기화 콜백을 호출한다.
+*/
 
 #include "vm/vm.h"
 #include "vm/uninit.h"
