@@ -54,9 +54,11 @@ struct page {
 	struct frame *frame;   /* Back reference for frame */
 
 	/* Your implementation */
-	/*------------------------- [P3] Memory Management --------------------------*/
-	struct hash_elem hash_elem;
+	/*-------------------------[P3]hash table---------------------------------*/
+	struct hash_elem hash_elem; // 해쉬 테이블 element(page와 해쉬테이블 연결해주는 element)
+	// key : page->va, value : struct page
 	bool writable; // 페이지의 R/W 여부 (ref. pml4_set_page)
+	/*-------------------------[P3]hash table---------------------------------*/
 
 	/* Per-type data are binded into the union.
 	 * Each function automatically detects the current union */
@@ -72,12 +74,17 @@ struct page {
 
 /* The representation of "frame" */
 struct frame {
-	void *kva; // 커널 가상 주소(물리 메모리와 일대일 매핑된다. project 3-Introduction 참조)
-	struct page *page; // 해당 프레임과 연결된 va 페이지
-
-	/*------------------------- [P3] Memory Management --------------------------*/
+	void *kva;
+	struct page *page;
+	/*-------------------------[P3]frame table---------------------------------*/
 	struct list_elem frame_elem; // frame을 리스트 형태로 구현했기 때문에 list_elem을 추가한다.
+	/*-------------------------[P3]frame table---------------------------------*/
+
 };
+
+
+
+
 
 /* The function table for page operations.
  * This is one way of implementing "interface" in C.
@@ -99,9 +106,10 @@ struct page_operations {
  * We don't want to force you to obey any specific design for this struct.
  * All designs up to you for this. */
 /* 보조 페이지 테이블에 대해 구현한다. */
-/*------------------------- [P3] Memory Management --------------------------*/
 struct supplemental_page_table {
-	struct hash spt_hash; // 해쉬 테이블로 구현
+	/*-------------------------[P3]hash table---------------------------------*/
+	struct hash spt_hash;
+	/*-------------------------[P3]hash table---------------------------------*/
 };
 
 #include "threads/thread.h"

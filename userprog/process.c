@@ -256,6 +256,10 @@ process_exec (void *f_name) {
 	/* We first kill the current context */
 	process_cleanup ();
 
+	/*-------------------------[P3]hash table---------------------------------*/
+	// ! supplemental_page_table_init(&thread_current()->spt);
+	/*-------------------------[P3]hash table---------------------------------*/
+
 	/* 커맨드 라인을 파싱한다. */
 	argument_parse(file_name, &argc, argv);
 

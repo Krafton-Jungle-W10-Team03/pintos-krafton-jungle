@@ -145,6 +145,9 @@ struct thread {
 	/* Owned by thread.c. */
 	struct intr_frame tf;               /* Information for switching */
 	unsigned magic;                     /* Detects stack overflow. */
+	/*-------------------------[P3]hash table---------------------------------*/
+	// ! struct hash; // 스레드가 가진 가상 공간을 관리하는 해시 테이블
+	/*-------------------------[P3]hash table---------------------------------*/
 };
 
 /* If false (default), use round-robin scheduler.
