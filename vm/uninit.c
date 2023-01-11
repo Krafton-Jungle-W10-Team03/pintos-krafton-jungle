@@ -30,9 +30,10 @@ uninit_new (struct page *page, void *va, vm_initializer *init,
 	ASSERT (page != NULL);
 
 	*page = (struct page) {
-		.operations = &uninit_ops,
+		.operations = &uninit_ops, 
+		// operations 필드로 uninit_ops를 설정해서 'VM_UNINIT'에 대한 처리를 해준다.
 		.va = va,
-		.frame = NULL, /* no frame for now */
+		.frame = NULL, /* no frame for now */ // 현재는 물리 메모리와 매핑되지는 않은 상태
 		.uninit = (struct uninit_page) {
 			.init = init,
 			.type = type,
@@ -60,9 +61,15 @@ uninit_initialize (struct page *page, void *kva) {
  * to other page objects, it is possible to have uninit pages when the process
  * exit, which are never referenced during the execution.
  * PAGE will be freed by the caller. */
+/* unitin_page가 가진 메모리를 해제한다. 대부분의 페이지가 다른 페이지 개체로 전송되지만 
+ * 프로세스가 종료될 때 실행 중에는 참조되지 않는 uninit 페이지가 있을 수 있다.
+ * 호출자가 페이지를 해제합니다. */
 static void
 uninit_destroy (struct page *page) {
 	struct uninit_page *uninit UNUSED = &page->uninit;
 	/* TODO: Fill this function.
 	 * TODO: If you don't have anything to do, just return. */
+	if (page->uninit.aux != NULL) // ? uninit.aux의 의미?
+		free (page->uninit.aux);
+    return;
 }
