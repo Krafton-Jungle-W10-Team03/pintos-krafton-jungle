@@ -12,6 +12,7 @@
 #define USERPROG // syscall.c 파일에서 에러 뜨는 부분 방지
 #define VM // vm.c 파일에서 에러 뜨는 부분 방지
 
+
 /* States in a thread's life cycle. */
 enum thread_status {
 	THREAD_RUNNING,     /* Running thread. */
@@ -138,14 +139,20 @@ struct thread {
 #endif
 #ifdef VM
 	/* Table for whole virtual memory owned by thread. */
+  /*-------------------------[P3]Anonoymous page---------------------------------*/
+	/* KAIST 15p. hash vm */
 	struct supplemental_page_table spt;
 	void *stack_bottom;
 	void *rsp_stack;
+	/*-------------------------[P3]Anonoymous page---------------------------------*/
 #endif
 
 	/* Owned by thread.c. */
 	struct intr_frame tf;               /* Information for switching */
 	unsigned magic;                     /* Detects stack overflow. */
+	/*-------------------------[P3]hash table---------------------------------*/
+	// ! struct hash; // 스레드가 가진 가상 공간을 관리하는 해시 테이블
+	/*-------------------------[P3]hash table---------------------------------*/
 };
 
 /* If false (default), use round-robin scheduler.

@@ -5,6 +5,8 @@
 #include "vm/inspect.h"
 
 #include "threads/vaddr.h"
+#include "threads/mmu.h"
+
 
 
 /*-------------------------[P3]frame table---------------------------------*/
@@ -18,6 +20,7 @@ static bool delete_page(struct hash *h, struct page *p);
 
 /* Initializes the virtual memory subsystem by invoking each subsystem's
  * intialize codes. */
+/* 아래의 초기화 코드를 호출하여 가상 메모리 하위 시스템을 초기화한다. */
 void
 vm_init (void) {
 	vm_anon_init ();
@@ -66,15 +69,18 @@ static struct frame *vm_evict_frame (void);
 */
 
 bool
-vm_alloc_page_with_initializer (enum vm_type type, void *upage, bool writable,
-		vm_initializer *init, void *aux) {
+vm_alloc_page_with_initializer (enum vm_type type, void *upage, bool writable, vm_initializer *init, void *aux) 
+// ↳ page type, page의 가상주소?, write 가능여부, page를 실제로 올릴때 실행하는 함수(vm_initializer), vm_initializer함수의 실행시에 넘겨주는 인자
+{
 
-	ASSERT (VM_TYPE(type) != VM_UNINIT)
+	ASSERT (VM_TYPE(type) != VM_UNINIT) // vm_type은 VM_ANON과 VM_FILE만 가능하다.
 
 	struct supplemental_page_table *spt = &thread_current ()->spt;
 
+
 	/* Check wheter the upage is already occupied or not. */
 	if (spt_find_page (spt, upage) == NULL) {
+ /* // ? 다시 
 	// ↳ upage라는 가상 메모리에 매핑되는 페이지 존재 x -> 새로 만들어야함
 		/* TODO: Create the page, fetch the initialier according to the VM type,
 		 * TODO: and then create "uninit" page struct by calling uninit_new. You
@@ -101,6 +107,28 @@ vm_alloc_page_with_initializer (enum vm_type type, void *upage, bool writable,
 
 		/* TODO: Insert the page into the spt. */
 		return spt_insert_page(spt, page); // 새로 만든 페이지를 spt에 삽입한다.
+=======
+*/
+		// ↳ upage라는 가상 메모리에 매핑되는 페이지 존재 x -> 새로 만들어야함
+		/* TODO: Create the page, fetch the initialier according to the VM type,
+		 * TODO: and then create "uninit" page struct by calling uninit_new. You
+		 * TODO: should modify the field after calling the uninit_new. 
+		 * 페이지를 만들고 vm유형에 따라 이니셜을 가져온 다음 uninit_new를 호출하여 uninit 페이지 구조를 만듦
+		 * uninit_new를 호출한 후 필드를 수정해야 함*/
+		/*-------------------------[P3]Anonoymous page---------------------------------*/
+		struct page* pg = malloc(sizeof(struct page));
+		if(type == VM_ANON)
+			uninit_new(pg, upage, init, type, aux, anon_initializer);
+			// ↳ page를 uninit으로 만들어서 spt에 올려두는 과정(실제 type을 올림)
+			// page 구조체의 pg,upage: 주소, init: lazy_load, type: 타입, initializer: 타입에 따른 함수(anon_initializer 또는 file_backed_initializer)
+		else if(type == VM_FILE)
+			uninit_new(pg, upage, init, type, aux, file_backed_initializer);
+		
+		/* TODO: Insert the page into the spt. */
+		pg->writable = writable;
+		spt_insert_page(spt, pg);;
+		return true;
+	/*-------------------------[P3]Anonoymous page---------------------------------*/
 	}
 err:
 	return false;
@@ -109,7 +137,7 @@ err:
 /* Find VA from spt and return page. On error, return NULL. */
 struct page *
 spt_find_page (struct supplemental_page_table *spt UNUSED, void *va UNUSED) {
-	struct page *page = NULL;
+	// struct page *page = NULL;
 	/* TODO: Fill this function. */
 	/*
 	* va를 통해 page를 찾아야하는데, hash_find의 인자는 hash_elem이므로 이에 해당하는 hash_elem을 만들어준다.
@@ -138,17 +166,22 @@ spt_find_page (struct supplemental_page_table *spt UNUSED, void *va UNUSED) {
 	e = hash_find(&spt->spt_hash, &page->hash_elem);
 	free(page);
 
+/* // ?
 	return page;
+*/
+	if (e == NULL)
+		return NULL;
+	else
+		return hash_entry(e, struct page, hash_elem); // e에 해당하는 page 리턴
+	/*-------------------------[P3]hash table---------------------------------*/
 }
 
+// 삽입 성공시 true, 실패시 false
 /* Insert PAGE into spt with validation. */
 bool
 spt_insert_page (struct supplemental_page_table *spt UNUSED,
 		struct page *page UNUSED) {
-	int succ = false;
-	/* TODO: Fill this function. */
-
-	return succ;
+	return insert_page(&spt -> spt_hash, page);
 }
 
 void
@@ -202,11 +235,40 @@ vm_evict_frame (void) {
  * and return it. This always return valid address. That is, if the user pool
  * memory is full, this function evicts the frame to get the available memory
  * space.*/
+/* palloc()을 하고 frame을 가져온다. 사용 가능한 페이지가 없는 경우, 페이지를 내쫓고 해당 페이지를 반환한다.
+ * 항상 유효한 주소를 반환한다. 즉, 유저 풀 메모리가 가득 차면 해당 함수는 사용 가능한 메모리 공간을 얻기 
+ * 위해 프레임을 제거한다.*/
 static struct frame *
-vm_get_frame (void) {
-	struct frame *frame = NULL;
+// 사용자 메모리가 가득차면 사용 가능한 메모리 공간을 얻기 위해 프레임 공간을 디스크로 내림(프레임 할당)
+vm_get_frame (void) { //프레임 할당
 	/* TODO: Fill this function. */
+	/*-------------------------[P3]frame table---------------------------------*/
+	// struct frame *frame = NULL;
+	// void *kva = palloc_get_page(PAL_USER); // 사용가능한 단일 페이지(물리적 페이지)를 가져옴 - PAL_USER : 페이지를 사용자 풀에서 가져옴, 그 외에는 커널 풀에서 가져옴
 
+	// if (kva == NULL) { // NULL이면 palloc으로 가져올수 있는 페이지가 없다는 것
+	// 	frame = vm_evict_frame(); // 페이지 삭제 후 frame 리턴
+	// }
+	// else {
+	// 	frame = malloc(sizeof(struct frame));
+	// 	frame->kva = kva;
+	// }
+
+	struct frame *frame = (struct frame*)malloc(sizeof(struct frame)); 
+	// frame 구조체를 위한 공간 할당한다.(작으므로 malloc으로 _Gitbook Memory Allocation 참조)
+
+	frame->kva = palloc_get_page(PAL_USER); 
+	// 유저 풀(실제 메모리)로부터 페이지 하나를 가져온다. 
+	// ↳ 사용 가능한 페이지가 없을 경우, NULL 리턴
+    if(frame->kva == NULL) { // 사용 가능한 페이지가 없는 경우
+        frame = vm_evict_frame(); // swap out 수행 (frame을 내쫓고 해당 공간을 가져온다.)
+        frame->page = NULL;
+
+        return frame; // 무조건 유효한 주소만 리턴한다는 말이 통하는 이유 : swap out을 통해 공간 확보후, 리턴하기 떄문
+    }
+    list_push_back (&frame_table, &frame->frame_elem); // 새로 frame을 생성한 경우
+    frame->page = NULL;
+	/*-------------------------[P3]frame table---------------------------------*/
 	ASSERT (frame != NULL);
 	ASSERT (frame->page == NULL);
 	return frame;
@@ -263,32 +325,41 @@ vm_dealloc_page (struct page *page) {
 /* Claim the page that allocate on VA. */
 bool
 vm_claim_page (void *va UNUSED) {
-	struct page *page = NULL;
+    struct thread *curr = thread_current();
 	/* TODO: Fill this function */
 	struct page *page = spt_find_page(&curr -> spt, va); // va에 해당하는 페이지가 존재하는지 확인한다.
 	if (page == NULL)
 		return false;
 
-	return vm_do_claim_page (page);
+	return vm_do_claim_page (page); // 해당 페이지에 프레임을 할당한다.
 }
 
 /* Claim the PAGE and set up the mmu. */
 static bool
 vm_do_claim_page (struct page *page) {
-	struct frame *frame = vm_get_frame ();
+	struct frame *frame = vm_get_frame (); // 프레임 하나를 얻는다.
 
 	/* Set links */
-	frame->page = page;
-	page->frame = frame;
+	frame->page = page; // 프레임의 페이지(가상)로 얻은 페이지를 연결해준다.
+	page->frame = frame; // 페이지의 물리적 주소로 얻은 프레임을 연결해준다.
 
 	/* TODO: Insert page table entry to map page's VA to frame's PA. */
+    struct thread *curr = thread_current();
+	bool writable = page -> writable; // 해당 페이지의 R/W 여부
+	pml4_set_page(curr->pml4, page->va, frame->kva, writable); // 현재 페이지 테이블에 가상 주소에 따른 frame 매핑
 
 	return swap_in (page, frame->kva);
 }
 
-/* Initialize new supplemental page table */
+
+/* Initialize new supplemental page table */ 
+// 보조페이지 테이블 사용 자료구조 선택 가능
+// 보조페이지 테이블 spt에서 가상주소 va와 대응되는 페이지 구조체 찾아서 리턴
 void
 supplemental_page_table_init (struct supplemental_page_table *spt UNUSED) {
+	/*-------------------------[P3]hash table---------------------------------*/
+	hash_init(&spt->spt_hash, hash_func, less_func, NULL);
+	/*-------------------------[P3]hash table---------------------------------*/
 }
 
 /* Copy supplemental page table from src to dst */
@@ -302,4 +373,58 @@ void
 supplemental_page_table_kill (struct supplemental_page_table *spt UNUSED) {
 	/* TODO: Destroy all the supplemental_page_table hold by thread and
 	 * TODO: writeback all the modified contents to the storage. */
+	/* TODO: 스레드별로 소유하고 있는 모든 spt를 삭제하고 수정된 모든 내용을 저장소에 다시 기록
+	*/
+	hash_destroy(&spt->spt_hash, spe);
 }
+
+/*-------------------------[P3]hash table---------------------------------*/
+/* [KAIST 35p.] vm_hash_func 
+ * spt에 넣을 인덱스를 해쉬 함수를 돌려서 도출한다.
+ * hash.c - 'hash_hash_func' 의 구현 형태
+ * hash_bytes 설명 : Returns a hash of the SIZE bytes in BUF(hash_elem).
+ * hash 함수로 가상주소를 hashed index(해시값)으로 변환하기 위함
+*/
+static unsigned 
+hash_func (const struct hash_elem *e, void *aux UNUSED) {
+	const struct page *p = hash_entry(e, struct page, hash_elem); // hash 테이블이 hash_elem을 원소로 가지고 있으므로 페이지 자체에 대한 정보를 가져온다.
+	return hash_bytes(&p->va, sizeof(p->va)); // 인덱스를 리턴해야하므로 hash_bytes를 리턴한다. 
+}
+
+/* [KAIST 35p.] vm_less_func 
+ * 체이닝 방식의 spt를 구현하기 위한 함수
+ * 해시 테이블 버킷 내의 두 페이지의 주소값 비교
+ * hash.c - 'hash_less_func' 의 구현 형태
+ * Returns true if page a precedes page b.
+ * // 충돌 비교?
+*/
+static unsigned 
+less_func(const struct hash_elem *a, const struct hash_elem *b, void *aux) {
+	const struct page *a_p = hash_entry(a, struct page, hash_elem);
+	const struct page *b_p = hash_entry(b, struct page, hash_elem);
+	return a_p->va < b_p->va; // b_p가 크면 true 반환 
+}
+
+/* [KAIST 34p.] insert_vme
+ * spt 해시 테이블에 페이지를 삽입한다.
+*/
+static bool 
+insert_page(struct hash *h, struct page *p) {
+    if(!hash_insert(h, &p->hash_elem))
+		return true;
+	else
+		return false;
+}
+
+/* [KAIST 34p.] delete_vme
+ * spt 해시 테이블에서 페이지를 삭제한다.
+*/
+// ? 이거 왜 구현하는 거지...?
+static bool 
+delete_page(struct hash *h, struct page *p) {
+	if(!hash_delete(h, &p->hash_elem))
+		return true;
+	else
+		return false;
+}
+/*-------------------------[P3]hash table---------------------------------*/
