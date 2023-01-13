@@ -35,6 +35,7 @@ vm_init (void) {
 /* Get the type of the page. This function is useful if you want to know the
  * type of the page after it will be initialized.
  * This function is fully implemented now. */
+// 페이지 유형을 가져옴 - 초기화된 후 페이지 유형을 알고 싶은 경우 유용(구현은 완료됨)
 enum vm_type
 page_get_type (struct page *page) {
 	int ty = VM_TYPE (page->operations->type);
@@ -289,6 +290,17 @@ vm_get_frame (void) { //프레임 할당
 /* Growing the stack. */
 static void
 vm_stack_growth (void *addr UNUSED) {
+	/* vm_try_handler 수정해서 stack growth인 경우 함수를 호출하도록 처리
+	   0. 증가 시점 : 할당해주지 않은 페이지에 rsp가 접근했을 때 : stack growth에 대한 page_fault 발생시
+	   1. stack_bottom 설정
+	   2. 확장 요청한 스택 사이즈 확인
+	   3. 스택 확장시, page 크기 단위로 해주기
+	   4. 확장한 페이지 할당 받기 
+	   * 커널에서 페이지 폴트 발생시, intr_frame 내의 rsp는 유저스택 포인터가 아닌 쓰레기 값을 가짐 -> 커널에서 발생시 유저 스택 포인터를 thread 구조체에 저장*/ 
+	if(vm_alloc_page(VM_ANON | VM_MARKER_0, addr, 1)) {
+		vm_claim_page(addr);
+		thread_current()->stack_bottom -= PGSIZE;
+	}
 }
 
 /* Handle the fault on write_protected page */
@@ -300,26 +312,39 @@ vm_handle_wp (struct page *page UNUSED) {
 bool
 vm_try_handle_fault (struct intr_frame *f UNUSED, void *addr UNUSED,
 		bool user UNUSED, bool write UNUSED, bool not_present UNUSED) {
+
 	struct supplemental_page_table *spt UNUSED = &thread_current ()->spt;
 	// struct page *page = NULL;
 	/* TODO: Validate the fault */
 	/* TODO: Your code goes here */
 	
 	/* page_fault로 부터 넘어온 인자
-	 * not_present : 페이지 존재 x (bogus fault)
-	 * user : 유저에 의한 접근(true), 커널에 의한 접근(false)
+	 * f : 페이지 폴트 발생 순간의 레지스터 값들을 담고 있는 구조체
+	 * addr : 페이지 폴트를 일으킨 가상주소
+	 * not_present : 페이지 존재 x (bogus fault), false인 경우 read-only페이지에 write하려는 상황
+	 * user : 유저에 의한 접근(true), 커널에 의한 접근(false) - rsp 값이 유저 영역인지 커널영역인지
 	 * write : 쓰기 목적 접근(true), 읽기 목적 접근(false)
 	*/
 	// ! Stack Growth 에서 다시 보기
 	// page fault 주소에 대한 유효성 검증
 	// 커널 가상 주소 공간에 대한 폴트 처리 불가, 사용자 요청에 대한 폴트 처리 불가
 	if (is_kernel_vaddr (addr) && user) // real fault
+	
 		return false;
 
+	// f->rsp가 커널 주소라면
     void *rsp_stack = is_kernel_vaddr(f->rsp) ? thread_current()->rsp_stack : f->rsp;
     if (not_present){
-        if (!vm_claim_page(addr)) return false;
-        else return true;
+        if (!vm_claim_page(addr)){
+			if (rsp_stack - 8 <= addr && USER_STACK - 0x100000 <= addr && addr <= USER_STACK) {
+				vm_stack_growth(thread_current()->stack_bottom - PGSIZE);
+				return true;
+			}
+			return false;
+		}
+		else
+			return true;
+
     }
 	
 	// return vm_do_claim_page (page);
@@ -376,9 +401,40 @@ supplemental_page_table_init (struct supplemental_page_table *spt UNUSED) {
 
 /* Copy supplemental page table from src to dst */
 bool
-supplemental_page_table_copy (struct supplemental_page_table *dst UNUSED,
-		struct supplemental_page_table *src UNUSED) {
+supplemental_page_table_copy (struct supplemental_page_table *dst UNUSED, struct supplemental_page_table *src UNUSED) 
+{
+	struct hash_iterator hash_iter;
+	hash_first(&hash_iter, &src->spt_hash);
+
+	while (hash_next(&hash_iter)) { // spt의 각각의 페이지를 반복문을 통해 복사
+		struct page* parent_page = hash_entry(hash_cur(&hash_iter), struct page, hash_elem); //현재 해쉬 테이블의 element리턴
+		// 복사할 페이지의 type, va, 쓰기 여부
+		enum vm_type type = page_get_type(parent_page); 
+		void *upage = parent_page->va; 
+		bool writable = parent_page->writable; 
+
+		vm_initializer *init = parent_page->uninit.init; 
+		void* aux = parent_page->uninit.aux;
+
+		if (parent_page->operations->type == VM_UNINIT) {
+			if(!vm_alloc_page_with_initializer(type, upage, writable, init, aux))
+				return false;
+		}
+		else {
+			if(!vm_alloc_page(type, upage, writable))
+				return false;
+			if(!vm_claim_page(upage))
+				return false;
+		}
+
+		if (parent_page->operations->type == VM_ANON){ // 부모의 타입이 VM_ANON인 경우 memcpy
+			struct page* child_page = spt_find_page(dst, upage);
+			memcpy(child_page->frame->kva, parent_page->frame->kva, PGSIZE);
+		}	
+	}
+	return true;
 }
+	
 
 /* Free the resource hold by the supplemental page table */
 void
@@ -387,8 +443,18 @@ supplemental_page_table_kill (struct supplemental_page_table *spt UNUSED) {
 	 * TODO: writeback all the modified contents to the storage. */
 	/* TODO: 스레드별로 소유하고 있는 모든 spt를 삭제하고 수정된 모든 내용을 저장소에 다시 기록
 	*/
-    // ? 다음 과제에서 보기..
-	// hash_destroy(&spt->spt_hash, spt);
+
+	
+	if (&spt->spt_hash == NULL)
+		return;
+	hash_destroy(&spt->spt_hash, spt_destroy);
+
+}
+
+void
+spt_destroy(struct hash_elem *e, void* aux) {
+    const struct page *p = hash_entry(e, struct page, hash_elem);
+    free(p);
 }
 
 /*-------------------------[P3]hash table---------------------------------*/
