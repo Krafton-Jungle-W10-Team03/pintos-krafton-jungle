@@ -71,9 +71,10 @@ process_create_initd (const char *file_name) {
 /* A thread function that launches first user process. */
 static void
 initd (void *f_name) {
-#ifdef VM
-	supplemental_page_table_init (&thread_current ()->spt);
-#endif
+// CHECK [process_exec -> supplemental_page_table_init]의 중복 선언으로 인한 코드 제거
+// #ifdef VM
+// 	supplemental_page_table_init (&thread_current ()->spt);
+// #endif
 
 	process_init ();
 
@@ -434,7 +435,7 @@ struct ELF64_PHDR {
 #define ELF ELF64_hdr
 #define Phdr ELF64_PHDR
 
-static bool setup_stack (struct intr_frame *if_);
+bool setup_stack (struct intr_frame *if_);
 static bool validate_segment (const struct Phdr *, struct file *);
 static bool load_segment (struct file *file, off_t ofs, uint8_t *upage,
 		uint32_t read_bytes, uint32_t zero_bytes,
@@ -666,7 +667,7 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
 }
 
 /* Create a minimal stack by mapping a zeroed page at the USER_STACK */
-static bool
+bool
 setup_stack (struct intr_frame *if_) {
 	uint8_t *kpage;
 	bool success = false;
@@ -822,7 +823,7 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
 }
 
 /* Create a PAGE of stack at the USER_STACK. Return true on success. */
-static bool
+bool
 setup_stack (struct intr_frame *if_) {
 	bool success = false;
 	void *stack_bottom = (void *) (((uint8_t *) USER_STACK) - PGSIZE); 
@@ -840,10 +841,10 @@ setup_stack (struct intr_frame *if_) {
 	/*-------------------------[P3]Anonoymous page---------------------------------*/
 	// vm_alloc_page(type, upage, writable)
 	// writable : bool type
-	// anon page로 만들 uninit page를 stack_bottom에서 위로 1page만큼 만든다. 이 때 type에 VM_MARKER_0 flag를 추가함으로써 이 page가 stack임을 표시
+	// anon page로 만들 uninit page를 stack_bottom에서 위로 1page만큼 만든다. 이때 type에 VM_MARKER_0 flag를 추가함으로써 이 page가 stack임을 표시
 	// 스택의 크기인 1mb범위 내에 있는지 확인
-	if(vm_alloc_page(VM_ANON | VM_MARKER_0, stack_bottom,1)){ // = vm_alloc_page_with_initializer ((type), (upage), (writable), NULL, NULL)
-
+	// (VM_ANON | VM_MARKER_0) -> 페이지 타입으로 ANON이며, 스택 페이지임을 나타낼 수 있게 VM_MARKER_0 매크로를 함께 넣어준다.
+	if(vm_alloc_page(VM_ANON | VM_MARKER_0, stack_bottom, 1)){ // = vm_alloc_page_with_initializer ((type), (upage), (writable), NULL, NULL)
 		success = vm_claim_page(stack_bottom); // stack_bottom에 프레임 할당
 
 		if (success) {

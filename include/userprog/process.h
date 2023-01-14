@@ -17,6 +17,8 @@ struct segment_aux {
     off_t offset;
     size_t page_read_bytes;
 };
+
+bool setup_stack (struct intr_frame *if_);
 /*-------------------------[P3]Anonoymous page---------------------------------*/
 
 #endif /* userprog/process.h */
