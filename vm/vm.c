@@ -405,10 +405,30 @@ supplemental_page_table_kill (struct supplemental_page_table *spt UNUSED) {
 	 * TODO: writeback all the modified contents to the storage. */
 	/* TODO: 스레드별로 소유하고 있는 모든 spt를 삭제하고 수정된 모든 내용을 저장소에 다시 기록
 	*/
+	/*-------------------------[P3]Anonymous---------------------------------*/
 	// hash 엔트리 각각에 대해 메모리를 해제한다.
+	// if (&spt->spt_hash == NULL)
+	// 	return;
+	// hash_destroy(&spt->spt_hash, spt_destroy);
+	/*-------------------------[P3]Anonymous---------------------------------*/
+
+	/*-------------------------[P3]mmf---------------------------------*/
+	// VM_FILE 타입 추가에 따른 exit -> 'mmap va'제거 수행
+	struct hash_iterator i;
+
 	if (&spt->spt_hash == NULL)
 		return;
-	hash_destroy(&spt->spt_hash, spt_destroy);
+
+    hash_first (&i, &spt->spt_hash);
+	while (hash_next (&i)) {
+        struct page *page = hash_entry (hash_cur (&i), struct page, hash_elem);
+
+        if (page_get_type(page) & VM_FILE)
+            do_munmap(page->va);
+			
+    }
+    hash_destroy(&spt->spt_hash, spt_destroy);
+	/*-------------------------[P3]mmf---------------------------------*/
 
 }
 
