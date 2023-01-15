@@ -87,7 +87,7 @@ vm_alloc_page_with_initializer (enum vm_type type, void *upage, bool writable, v
 		 * 페이지를 만들고 vm유형에 따라 이니셜을 가져온 다음 uninit_new를 호출하여 uninit 페이지 구조를 만듦
 		 * uninit_new를 호출한 후 필드를 수정해야 함*/
 		/*-------------------------[P3]Anonoymous page---------------------------------*/
-		struct page* pg = calloc(sizeof(struct page), sizeof(struct page)); // ! malloc -> calloc
+		struct page* pg = calloc(1, sizeof(struct page)); // ! malloc -> calloc
 
 		// 페이지 타입에 따라 initializer가 될 초기화 함수를 매칭해준다.
 		typedef bool (*initializer_by_type)(struct page *, enum vm_type, void *);
