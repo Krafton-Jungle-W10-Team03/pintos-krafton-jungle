@@ -280,11 +280,9 @@ vm_try_handle_fault (struct intr_frame *f UNUSED, void *addr UNUSED,
 	 * user : 유저에 의한 접근(true), 커널에 의한 접근(false) - rsp 값이 유저 영역인지 커널영역인지
 	 * write : 쓰기 목적 접근(true), 읽기 목적 접근(false)
 	*/
-	// ! Stack Growth 에서 다시 보기
 	// page fault 주소에 대한 유효성 검증
 	// 커널 가상 주소 공간에 대한 폴트 처리 불가, 사용자 요청에 대한 폴트 처리 불가
 	if (is_kernel_vaddr (addr) && user) // real fault
-	
 		return false;
 
 	// f->rsp가 커널 주소라면 rsp_stack, 아니면 f->rsp
@@ -293,7 +291,7 @@ vm_try_handle_fault (struct intr_frame *f UNUSED, void *addr UNUSED,
     void *rsp_stack = f->rsp;
     if (not_present){
         if (!vm_claim_page(addr)){ // 스택을 증가 시켜야하는 경우, 즉 spt에 현재 할당된 스택 영역을 넘거가는 경우
-			if (rsp_stack - sizeof(void*) <= addr && STACK_MINIMUM_ADDR <= addr && addr <= USER_STACK) {
+			if (rsp_stack - sizeof(void*) == addr && STACK_MINIMUM_ADDR <= addr && addr <= USER_STACK) {
 				vm_stack_growth(thread_current()->stack_bottom - PGSIZE);
 				return true;
 			}
@@ -302,8 +300,6 @@ vm_try_handle_fault (struct intr_frame *f UNUSED, void *addr UNUSED,
 		else
 			return true;
     }
-	
-	// return vm_do_claim_page (page);
 	return false;
 }
 
@@ -423,7 +419,7 @@ supplemental_page_table_kill (struct supplemental_page_table *spt UNUSED) {
 	while (hash_next (&i)) {
         struct page *page = hash_entry (hash_cur (&i), struct page, hash_elem);
 
-        if (page_get_type(page) & VM_FILE)
+        if (page_get_type(page) == VM_FILE)
             do_munmap(page->va);
 			
     }

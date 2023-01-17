@@ -78,7 +78,7 @@ do_mmap (void *addr, size_t length, int writable,
 		read_bytes -= page_read_bytes;
 		zero_bytes -= page_zero_bytes;
 
-		// 페이지를 하나 할당에 따른 주소값, 오프셋 변경
+		// 페이지 하나 할당에 따른 주소값, 오프셋 변경
 		mmap_addr += PGSIZE;
 		offset += page_read_bytes;
 	}

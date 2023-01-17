@@ -92,10 +92,6 @@ void
 syscall_handler (struct intr_frame *f UNUSED) {
 	// TODO: Your implementation goes here.
 	struct thread *curr = thread_current();
-	#ifdef VM
-		curr->rsp_stack = f->rsp;
-    #endif
-
 	switch (f->R.rax) // 시스템 콜 번호에 따라 분기
 	{
 	case SYS_HALT:
@@ -301,7 +297,6 @@ filesize (int fd){
  */
 int 
 read(int fd, void *buffer, unsigned size) {
-	// check_address(buffer);
 	int read_bytes = -1;
 
 	if(fd == STDIN_FILENO){ // fd 0 reads from the keyboard using input_getc()._gitbook
@@ -339,7 +334,6 @@ read(int fd, void *buffer, unsigned size) {
  */
 int
 write (int fd, const void *buffer, unsigned size) {
-	// check_address(buffer);
 	int write_bytes = -1;
 
 	if (fd == STDOUT_FILENO){
@@ -432,10 +426,11 @@ void *mmap (void *addr, size_t length, int writable, int fd, off_t offset){
 	// CASE 1 - 6
     if (addr == NULL || is_kernel_vaddr(addr) || is_kernel_vaddr(pg_round_up(addr)) || pg_round_down(addr) != addr || spt_find_page(&thread_current()->spt, addr) \
 		|| offset > PGSIZE \
-		|| (long) length <= 0) // ? 형 변환 안하면 통과 못함 -> 엄청나게 큰 값이 아니라 음수야.
+		|| (long) length <= 0) // ? 형 변환 안하면 통과 못함 (Input : 음수)
         return NULL;
 		
 	/* mmap-kernel TC
+	 * 
 	 * kernel = (void *) 0x8004000000 - 0x1000;
   	 * CHECK (mmap (kernel, -0x8004000000 + 0x1000, 0, handle, 0) == MAP_FAILED,
      * "try to mmap over kernel 2"); */
